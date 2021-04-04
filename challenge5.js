@@ -1,43 +1,57 @@
 {
     init: function(elevators, floors) {
-        var first_elevator = elevators[0];
-        var second_elevator = elevators[1];
-        var third_elevator = elevators[2];
-        var fourth_elevator = elevators[3];
+        let pending_floors = [];
         
-        // "Floor button pressed" event
-        first_elevator.on("floor_button_pressed", function(floorNum) {
-            first_elevator.goToFloor(floorNum);
-        });
-        
-        second_elevator.on("floor_button_pressed", function(floorNum) {
-            second_elevator.goToFloor(floorNum);
-        });
-        
-        third_elevator.on("floor_button_pressed", function(floorNum) {
-            third_elevator.goToFloor(floorNum);
-        });
+        // "floor button pressed" event
+        elevators.forEach( elevator => elevator.on("floor_button_pressed", floorNum => {
+            if (pending_floors.includes(floorNum)) {
+                pending_floors = pending_floors.filter(floor => floor !== floorNum);
+            }
+            
+            let current_floor = elevator.currentFloor();
+            let queue = elevator.destinationQueue;
+            
+            if (!queue.includes(floorNum)) {
+                queue.push(floorNum);
+            }
 
-        fourth_elevator.on("floor_button_pressed", function(floorNum) {
-            fourth_elevator.goToFloor(floorNum);
-        });
-
+            queue.sort();
+            if (queue[queue.length - 1] > current_floor) {
+                let upper_floors = queue.filter(floor => floor >= current_floor); 
+                let lower_floors = queue.filter(floor => floor < current_floor);
+                queue = upper_floors.concat(lower_floors);
+            }
+            
+            elevator.destinationQueue = queue;
+            elevator.checkDestinationQueue();
+        }));
+        
+        // "button pressed" events
+        floors.forEach((floor, floorNum) => {
+            floor.on("up_button_pressed", function() {
+                if (!pending_floors.includes(floorNum))
+                    pending_floors.push(floorNum);
+            })
+            
+            floor.on("down_button_pressed", function() {
+                if (!pending_floors.includes(floorNum))
+                    pending_floors.push(floorNum);
+            })
+        })
+        
         // "idle" event
-        first_elevator.on("idle", function() {
-            first_elevator.goToFloor(0);
-        });
-        
-        second_elevator.on("idle", function() {
-            second_elevator.goToFloor(0);
-        });
-        
-        third_elevator.on("idle", function() {
-            third_elevator.goToFloor(0);
-        });
+        elevators.forEach((elevator, index) => {
+            elevator.on("idle", function() {
+                if (pending_floors.length > 0) {
+                    let next_floor = pending_floors.pop()
+                    elevator.goToFloor(next_floor);
+                } else {
+                    elevator.goToFloor(0);
+                }
 
-        fourth_elevator.on("idle", function() {
-            fourth_elevator.goToFloor(0);
-        });
+            })
+        })
+        
     },
     update: function(dt, elevators, floors) {
         // We normally don't need to do anything here

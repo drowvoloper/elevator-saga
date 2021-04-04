@@ -2,55 +2,54 @@
     init: function(elevators, floors) {
         let pending_floors = [];
         
-        elevators.forEach( elevator => elevator.on("floor_button_pressed", floorNum => elevator.goToFloor(floorNum)));
-        
-        // functions
-        const isElevatorGoingThere = (level) => { 
-            return elevators.filter(elevator => elevator.getPressedFloors().indexOf(level) === -1 ? false : true);
-        }
-        
-        const isThereAFreeElevator = () => {
-            for (let i = 0; i < elevators.length; i++) {
-                if (elevators[i].getPressedFloors().length === 0) {
-                    return elevators[i];
-                }
+        // "floor button pressed" event
+        elevators.forEach( elevator => elevator.on("floor_button_pressed", floorNum => {
+            if (pending_floors.includes(floorNum)) {
+                pending_floors = pending_floors.filter(floor => floor !== floorNum);
             }
+            
+            let current_floor = elevator.currentFloor();
+            let queue = elevator.destinationQueue;
+            
+            queue.push(floorNum);
 
-            return null;
-        }
-        
-        const handleButtonPressed = (level) => {
-            if (!isElevatorGoingThere(level).length > 0) {
-                let free_elevator = isThereAFreeElevator();
-                if (free_elevator) {
-                    free_elevator.goToFloor(level);
-                    return ;
-                } 
-
-                pending_floors.push(level);
+            queue.sort();
+            if (queue[queue.length - 1] > current_floor) {
+                let upper_floors = queue.filter(floor => floor >= current_floor); 
+                let lower_floors = queue.filter(floor => floor < current_floor);
+                queue = upper_floors.concat(lower_floors);
             }
-        }
+            
+            elevator.destinationQueue = queue;
+            elevator.checkDestinationQueue();
+        }));
         
-        // handle button pressed
-        floors.forEach((floor, level) => {
+        // "button pressed" events
+        floors.forEach((floor, floorNum) => {
             floor.on("up_button_pressed", function() {
-                handleButtonPressed(level);
-            })   
+                if (!pending_floors.includes(floorNum))
+                    pending_floors.push(floorNum);
+            })
             
             floor.on("down_button_pressed", function() {
-                handleButtonPressed(level);
-            }) 
-
-        }) // handle button pressed
-        
-        elevators.forEach((elevator) => {
-            elevator.on("idle", function() {
-                elevator.destinationQueue = pending_floors.sort();
-                elevator.checkDestinationQueue();
-                pending_floors = [];
+                if (!pending_floors.includes(floorNum))
+                    pending_floors.push(floorNum);
             })
         })
+        
+        // "idle" event
+        elevators.forEach((elevator, index) => {
+            elevator.on("idle", function() {
+                if (pending_floors.length > 0) {
+                    let next_floor = pending_floors.pop()
+                    elevator.goToFloor(next_floor);
+                } else {
+                    elevator.goToFloor(0);
+                }
 
+            })
+        })
+        
     },
     update: function(dt, elevators, floors) {
         // We normally don't need to do anything here

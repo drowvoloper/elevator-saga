@@ -1,25 +1,45 @@
 {
     init: function(elevators, floors) {
-        var first_elevator = elevators[0];
-        var second_elevator = elevators[1];
+        let pending_floors = [];
         
-        // "Floor button pressed" event
-        first_elevator.on("floor_button_pressed", function(floorNum) {
-            first_elevator.goToFloor(floorNum);
-        });
+        // "floor button pressed" event
+        elevators.forEach( elevator => elevator.on("floor_button_pressed", floorNum => {
+            if (pending_floors.includes(floorNum)) {
+                pending_floors = pending_floors.filter(floor => floor !== floorNum);
+            }
+            
+            elevator.destinationQueue.push(floorNum);
+            elevator.destinationQueue.sort();
+            elevator.checkDestinationQueue();
+        }));
         
-        second_elevator.on("floor_button_pressed", function(floorNum) {
-            second_elevator.goToFloor(floorNum);
-        });
-
+        // "button pressed" events
+        floors.forEach((floor, floorNum) => {
+            floor.on("up_button_pressed", function() {
+                if (!pending_floors.includes(floorNum))
+                    pending_floors.push(floorNum);
+            })
+            
+            floor.on("down_button_pressed", function() {
+                if (!pending_floors.includes(floorNum))
+                    pending_floors.push(floorNum);
+            })
+        })
+        
         // "idle" event
-        first_elevator.on("idle", function() {
-            first_elevator.goToFloor(0);
-        });
+        elevators.forEach((elevator, index) => {
+            elevator.on("idle", function() {
+                if (pending_floors.length > 0) {
+                    let next_floor = pending_floors.sort().pop()
+                    console.log(next_floor);
+                    elevator.goToFloor(next_floor);
+                } else {
+                    elevator.goToFloor(0);
+                }
+
+            })
+        })
         
-        second_elevator.on("idle", function() {
-            second_elevator.goToFloor(0);
-        });
     },
     update: function(dt, elevators, floors) {
         // We normally don't need to do anything here
